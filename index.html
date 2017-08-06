@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>D3 Test</title>
+        <script type="text/javascript" src="d3/d3.js"></script>
+        <script src="http://code.jquery.com/jquery-latest.min.js"></script>
+        <style>
+
+        svg {
+            float: left;
+            display: block;
+            margin: auto;
+            shape-rendering: crispEdges;
+        }
+
+        .line {
+            fill: none;
+            stroke: steelblue;
+            stroke-width: 1.5px;
+        }
+
+        .container {
+          height: 100vh;
+          width: 100vw;
+          font-family: Georgia;
+        }
+
+        .loader {
+          height: 20px;
+          width: 250px;
+          position: absolute;
+          top: -150px;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          margin: auto;
+        }
+
+        .loader_dot {
+          animation-name: loader;
+          animation-timing-function: ease-in-out;
+          animation-duration: 3s;
+          animation-iteration-count: infinite;
+          height: 20px;
+          width: 20px;
+          border-radius: 100%;
+          background-color: black;
+          position: absolute;
+          border: 2px solid white;
+        }
+        .loader_dot:first-child {
+          background-color: #8cc759;
+          animation-delay: 0.5s;
+        }
+        .loader_dot:nth-child(2) {
+          background-color: #8c6daf;
+          animation-delay: 0.4s;
+        }
+        .loader--dot:nth-child(3) {
+          background-color: #ef5d74;
+          animation-delay: 0.3s;
+        }
+        .loader_dot:nth-child(4) {
+          background-color: #f9a74b;
+          animation-delay: 0.2s;
+        }
+        .loader_dot:nth-child(5) {
+          background-color: #60beeb;
+          animation-delay: 0.1s;
+        }
+        .loader_dot:nth-child(6) {
+          background-color: #fbef5a;
+          animation-delay: 0s;
+        }
+        .loader_text {
+          position: absolute;
+          top: 200%;
+          left: 0;
+          right: 0;
+          width: 4rem;
+          margin: auto;
+        }
+        #posts_loaded {
+          position: relative;
+          top: 350%;
+          left: 6px;
+          right: 0;
+          text-align: center;
+          margin: auto;
+        }
+        #posts_loaded2 {
+          position: relative;
+          top: 450%;
+          left: 11px;
+          right: 0;
+          margin: auto;
+        }
+        .loader_text:after {
+          content: "Loading";
+          font-weight: bold;
+          animation-name: loading-text;
+          animation-duration: 3s;
+          animation-iteration-count: infinite;
+        }
+
+        @keyframes loader {
+          15% {
+            transform: translateX(0);
+          }
+          45% {
+            transform: translateX(230px);
+          }
+          65% {
+            transform: translateX(230px);
+          }
+          95% {
+            transform: translateX(0);
+          }
+        }
+        @keyframes loading-text {
+          0% {
+            content: "Loading";
+          }
+          25% {
+            content: "Loading.";
+          }
+          50% {
+            content: "Loading..";
+          }
+          75% {
+            content: "Loading...";
+          }
+        }
+
+        </style>
+    </head>
+    <body>
+        <script>
+
+        // FB asychronous authentication
+        window.fbAsyncInit = function() {
+            FB.init({
+              appId      : '483524125184362',
+              xfbml      : true,
+              cookie     : true,
+              version    : 'v2.7'
+            });
+            Login();
+        };
+
+        var userName = '';
+
+        // logs-in current user with maximal scope and logs result to the console
+        // calls pullPosts() if login is successful
+        function Login() {
+            FB.login(
+                function (response) {
+                    if (response.authResponse) {
+                        // var access_token =  FB.getAuthResponse()['accessToken'];
+                        // console.log('Access Token = ' + access_token);
+                        FB.api('/me', function (response) {
+                            console.log('Connected! Good to see you, ' + response.name + '.');
+                            userName = response.name;
+                            createLoadingScreen();
+                        });
+                        pullPosts();
+                    }
+                    else {
+                        console.log('User cancelled login or did not authorize.');
+                    }
+                },
+                {scope:
+                    'user_posts,email,user_friends,public_profile'
+                }
+            ); 
+        }
+
+        // drawing globals
+        var titleHeight = 45;
+        var graphBuffer = 15; // to make sure things don't run off the page
+
+        // using 600 x 300 as the minimum individual graph size
+        var graphWidth = Math.max(
+            window.innerWidth / 2 - graphBuffer
+            , 600
+        );
+        var graphHeight = Math.max(
+            (window.innerHeight - 3.65 * titleHeight) / 2 - graphBuffer
+            , 300
+        );
+
+        function createLoadingScreen() {
+            d3.select("body").
+                append("div").
+                attr("class", "title").
+                style("width", window.innerWidth + 'px').
+                style("height", titleHeight + 'px').
+                style("display", "block").
+                style("font-family", "Georgia").
+                style("font-weight", "bold").
+                style("font-size", "28px").
+                style("text-align", "center").
+                style("display", "table-cell").
+                style("vertical-align", "middle").
+                style("padding-bottom", 2 * graphBuffer + 'px').
+                text('The Amazing Like Visualizer!');
+            d3.select("body").
+                append("div").
+                attr("class", "container").
+                append("div").
+                attr("class", "loader").
+                attr("id", "end");
+            d3.select("#end").
+                selectAll("div")
+                .data([1,2,3,4,5,6])
+                .enter().append("div").
+                attr("class", "loader_dot");
+            d3.select("#end").
+                append("div").
+                attr("class", "loader_text");
+            d3.select("#end").
+                append("div").
+                attr("id", "posts_loaded").
+                style("font-family", "Georgia").
+                style("font-size", "14px").
+                style("font-weight", "bold").
+                text("[0 posts loaded]");
+            d3.select("#end").
+                append("div").
+                attr("id", "posts_loaded2").
+                style("font-family", "Georgia").
+                style("font-size", "14px").
+                style("font-style", "italic").
+                style("text-align", "center").
+                text("It takes more popular people longer! So please be patient, you superstar :)");
+        }
+
+        // NEEDS TO BE CLEANED!!!
+        function createHTMLStructure(userName) {
+            d3.select(".container").remove();
+            d3.select("div.title").
+                text('Welcome, ' + userName.split(' ')[0] + '!');
+            for (var i = 0; i < 2; i++) {
+                d3.select("body").
+                    append("div").
+                    attr("id", 'graph' + i + 'title').
+                    style("width", graphWidth + 'px').
+                    style("display", "inline-block").
+                    style("font-family", "Georgia").
+                    style("font-size", "20px").
+                    style("font-weight", "bold").
+                    style("font-variant", "small-caps").
+                    style("text-align", "center");
+            }
+            for (var i = 0; i < 2; i++) {
+                d3.select("body").
+                    append("div").
+                    attr("id", 'graph' + i).
+                    style("width", graphWidth + 'px').
+                    style("height", graphHeight + 'px').
+                    style("display", "inline-block");
+            }
+            for (var i = 2; i < 4; i++) {
+                d3.select("body").
+                    append("div").
+                    attr("id", 'graph' + i + 'title').
+                    style("width", graphWidth + 'px').
+                    style("display", "inline-block").
+                    style("font-family", "Georgia").
+                    style("font-size", "20px").
+                    style("font-weight", "bold").
+                    style("font-variant", "small-caps").
+                    style("text-align", "center");
+            }
+            for (var i = 2; i < 4; i++) {
+                d3.select("body").
+                    append("div").
+                    attr("id", 'graph' + i).
+                    style("width", graphWidth + 'px').
+                    style("height", graphHeight + 'px').
+                    style("display", "inline-block");
+            }
+        }
+
+        // global variable for user's posts
+        var posts = [];
+
+        // pulls all of current user's Facebook posts
+        function pullPosts() {
+            FB.api(
+                '/me',
+                'GET',
+                {"fields":"posts{comments,likes,message,status_type,story,created_time}"},
+                function (response) {
+                    posts = response.posts.data;
+                    // assumes >1 page
+                    depaginateResults(response.posts.paging.next);
+                }
+            );
+        }
+
+        // takes in an endpoint of a resource, follows this resource, and recursively
+        // any subsequent resources in the paging->next response fields, concatenating the
+        // results each time to the global posts variable
+        function depaginateResults(endpoint) {
+            var amount = parseInt(d3.select("#posts_loaded").
+                text().match(/\d+/)[0]) + 25;
+            d3.select("#posts_loaded").
+                text("[" + amount + " posts loaded]");
+            FB.api(endpoint, 
+                function(response) {
+                    posts = posts.concat(response.data);
+                    if ('paging' in response) {
+                        depaginateResults(response.paging.next);
+                    } else {
+                        extractDataFromPosts();
+                    }
+                }
+            );
+        }
+
+        // global data dict
+        var data = {};
+
+        // populates data dict with post attributes, using post_id as index 
+        // and temporarily setting a post's likes to 0.
+        function extractDataFromPosts() {
+            for (var i = 0; i < posts.length; i++) {
+                data[posts[i].id] = {
+                    created_time: posts[i].created_time
+                    , status_type: posts[i].status_type
+                    , message: posts[i].message
+                    , story: posts[i].story
+                    , caption: posts[i].caption
+                    , description: posts[i].description
+                    , comments: posts[i].comments
+                    , likes: undefined
+                    , likers: []
+                }
+            }
+            getLikes();
+        }
+
+        // builds 50-post-long request strings to obtain the total count of likes
+        // for each of a user's Facebook posts, subsequently updating `data` and
+        // calling drawLikeScatterPlot() each time in the response
+        function getLikes() {
+            // FB only allows 50 objects to be requested at a time
+            for (var i = 0; i < Math.ceil(posts.length/50); i++) {
+                // build up request string
+                var requestString = '';
+                for (var j = 0; j < Math.min(posts.length - i * 50, 50); j++) {
+                    // make sure last id doesn't have a trailing ',' and add summary flag
+                    if (j == Math.min(posts.length - i * 50, 50) - 1) {
+                        requestString += (posts[i * 50 + j].id + '&summary=1');
+                    }
+                    else {
+                        requestString += (posts[i * 50 + j].id + ',');
+                    }
+                }
+                FB.api(
+                    "/likes?ids=" + requestString,
+                    function (response) {
+                        for (var post_id in response) {
+                            try {
+                                data[post_id].likes = response[post_id].summary.total_count;
+                                data[post_id].likers = response[post_id].data;
+                                if ('paging' in response[post_id] && 'next' in response[post_id].paging) {
+                                    depaginateLikers(response[post_id].paging.next, post_id);    
+                                }
+                            } catch (e) {
+                                if (e instanceof TypeError) {
+                                    data[post_id].likes = 0;
+                                }
+                            }
+                        }
+                        drawLikeScatterPlot();
+                    }
+                );
+            }
+        }
+
+        function depaginateLikers(endpoint, post_id) {
+            FB.api(endpoint, 
+                function(response) {
+                    if (response && !response.error) {
+                        data[post_id].likers = data[post_id].likers.concat(response.data);
+                        if ('next' in response.paging) {
+                            depaginateResults(response.paging.next, post_id);
+                        } else {
+                            return;
+                        }
+                    }
+                }
+            );
+        }
+
+        // dataset, a filtered, JSON-array version of `data`
+        var dataset = [];
+
+        // chart settings
+        var padding = 40;
+        var fontFamily = "Georgia";
+        var axisFontSize = 13;
+
+        // var transitionDuration = 1500;
+
+        // Draws an interactive scatterplot of a user's posts over the last 3 years
+        // and their respective likes in which you can hover over a data point, which
+        // is sized based on likes, and see which status post it was
+        function drawLikeScatterPlot() {
+
+            // [hacky] make sure we have full dataset
+            var returnedLikes = 0;
+            for (var post_id in data) {
+                if (data[post_id].likes != undefined) { returnedLikes++; }
+            }
+            if (returnedLikes < posts.length * .975) { return; }
+
+            createHTMLStructure(userName);
+
+            // filter `data` to only include human-created posts and posts from the last ~3 years
+            for (post_id in data) {
+                if (data[post_id].message != undefined && 
+                    d3.isoParse(data[post_id].created_time) >= d3.isoParse("2013-01-01T00:00:00+0000")) {
+                        data[post_id].created_time = d3.isoParse(data[post_id].created_time);
+                        dataset.push(data[post_id]);
+                }
+            }
+
+            // scales
+            var xScale = d3.scaleTime()
+                                    .domain([
+                                        d3.isoParse("2013-01-01T00:00:00+0000")
+                                        , d3.max(dataset, function(d) { return d.created_time; })
+                                    ])
+                                    .range([padding, graphWidth - padding]);
+            var yScale = d3.scaleSqrt()
+                                    .domain([0, d3.max(dataset, function(d) { return d.likes; })])
+                                    .range([graphHeight - padding, padding]);
+            var minCircleSize = 5, maxCircleSize = 11;
+            var rScale = d3.scaleSqrt()
+                                    .domain([0, d3.max(dataset, function(d) { return d.likes; })])
+                                    .range([minCircleSize, maxCircleSize]);
+
+            d3.select("#graph0title")
+                .append("div")
+                .text("Which of your posts are best received?")
+                .style("font-weight", "normal")
+                .style("font-variant", "normal")
+                .append("div")
+                .text("Posts likes by post type since 2013")
+                .style("font-weight", "bold")
+                .style("font-variant", "small-caps");
+
+            // create SVG element
+            var svg = d3.select("#graph0")
+                .append("svg")
+                .attr("width", graphWidth)
+                .attr("height", graphHeight);
+
+            // enter data
+            svg.selectAll("circle")
+                .data(dataset)
+                .enter()
+                .append("circle")
+                // .transition()
+                // .duration(transitionDuration)
+                .attr("cx", function(d) {
+                    return xScale(d.created_time);
+                })
+                .attr("cy", function(d) {
+                    return yScale(d.likes);
+                })
+                .attr("r", function(d) {
+                    return rScale(d.likes);
+                })
+                .attr("fill", function(d) {
+                    return statusToColor(d.status_type);
+                })
+                .on("mouseover", handleMouseOver)
+                .on("mouseleave", handleMouseLeave);
+
+            // hover tooltips
+            var tooltipOffset = 15;
+
+            function handleMouseOver(d) {
+                var otherCircles = $("#graph0 circle").not(this);
+                d3.selectAll(otherCircles).
+                    transition().
+                    style("opacity", 0.2).
+                    duration(250);
+                svg.append("text").
+                    attr("class", "tooltip-hover").
+                    style("text-anchor", chooseTextDirection(d)).
+                    attr("x", processXStatusPosition(d)).
+                    attr("y", processYStatusPosition(d)).
+                    attr("font-family", fontFamily).
+                    attr("font-size", 12).
+                    html(prettifyMessage(d.message, processXStatusPosition(d)));
+            }
+
+            var charsPerLine = 65;
+            var lineSize = 13;
+
+            function chooseTextDirection(d) {
+                if (xScale(d.created_time) > (xScale.range()[0] + xScale.range()[1]) / 2) {
+                    return "end";
+                } else {
+                    return "start";
+                }
+            }
+
+            function processXStatusPosition(d) {
+                if (xScale(d.created_time) > (xScale.range()[0] + xScale.range()[1]) / 2) {
+                    return xScale(d.created_time) - tooltipOffset;
+                } else {
+                    return xScale(d.created_time) + tooltipOffset;
+                }
+            }
+
+            function processYStatusPosition(d) {
+                var linesNeeded = Math.ceil(d.message.length / charsPerLine);
+                if (linesNeeded > 1) {
+                    return yScale(d.likes) - (linesNeeded / 2) * lineSize;
+                }
+                else {
+                    return yScale(d.likes) - tooltipOffset / 2;
+                }
+            }
+
+            function prettifyMessage(message, xPosition) {
+                var result = '';
+                while (message.length > 0) {
+                    result += ('<tspan x="' + xPosition + '" dy="1.2em">' + message.substring(0, charsPerLine) + '</tspan>');
+                    message = message.substring(charsPerLine);
+                }
+                return result;
+            }
+
+            function handleMouseLeave() {
+                d3.selectAll(".tooltip-hover")
+                    .remove();
+                d3.selectAll("#graph0 circle")
+                    .transition()
+                    .style("opacity", 1)
+                    .duration(250);
+            }
+
+            // add axes
+            svg.append("g")
+                // .transition()
+                // .duration(transitionDuration)
+                .attr("transform", "translate(0," + (graphHeight - padding) + ")")
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisBottom(xScale)
+                    .tickArguments([25])
+                );
+
+            svg.append("g")
+                // .transition()
+                // .duration(transitionDuration)
+                .attr("transform", "translate(" + padding + ",0)")
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisLeft(yScale)
+                    .tickArguments([8]))
+                .append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 8)
+                .attr("x", -padding)
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .style("font-weight", "bold")
+                .attr("dy", "0.71em")
+                .attr("fill", "#000")
+                .text("post likes");
+
+            // should be more exhaustive here.
+            function statusToColor(status_type) {
+                switch (status_type) {
+                    case "mobile_status_update":
+                        return d3.schemeCategory10[0];
+                    case "added_photos":
+                        return d3.schemeCategory10[1];
+                    case "shared_story":
+                        return d3.schemeCategory10[2];
+                    case "published_story":
+                        return d3.schemeCategory10[3];
+                    default:
+                        return "gray";
+                }
+            }
+            drawPostingRateGraph();
+        }
+
+        function drawPostingRateGraph() {
+
+            // calculate posting rate over certain rolling window
+            var lookbackPeriod = 30*4;
+            var allDays = d3.timeDays(
+                d3.timeDay.offset(d3.isoParse("2013-01-01T00:00:00+0000"), lookbackPeriod)
+                , d3.timeDay.offset(d3.max(dataset, function(d) { return d.created_time; }), -lookbackPeriod)
+            );
+            var postingRate = [];
+            for (var i = 0; i < allDays.length; i++) {
+                var postCount = 0;
+                for (var post_id in data) {
+                    if (data[post_id].created_time <= allDays[i]
+                        && data[post_id].created_time > (d3.timeDay.offset(allDays[i], -lookbackPeriod))) {
+                        postCount++;
+                    }
+                }
+                // monthize
+                postingRate.push(postCount / (lookbackPeriod / 30));
+            }
+
+            // do the same for the like rate
+            var likeRate = [];
+            for (var i = 0; i < allDays.length; i++) {
+                var selectedData = [];
+                for (var j = 0; j < dataset.length; j++) {
+                    if (dataset[j].created_time > d3.timeDay.offset(allDays[i], -lookbackPeriod)
+                        && dataset[j].created_time <= allDays[i]) {
+                        selectedData.push(dataset[j]);
+                    }
+                }
+                likeRate.push(d3.mean(selectedData, function(d) { return d.likes; }) == undefined ? 0 :
+                    d3.mean(selectedData, function(d) { return d.likes; }));
+            }
+
+            // build postingData JSON array
+            var postingData = [];
+            for (var i = 0; i < allDays.length; i++) {
+                postingData.push(
+                    { "day": allDays[i]
+                    , "posting_rate": postingRate[i]
+                    , "like_rate":  likeRate[i]}
+                );
+            }
+
+            d3.select("#graph2title")
+                .append("div")
+                .text("How open and popular are you over time?")
+                .style("font-weight", "normal")
+                .style("font-variant", "normal")
+                .append("div")
+                .text("Activity rates, 120-day trailing averages")
+                .style("font-weight", "bold")
+                .style("font-variant", "small-caps");
+
+            var svg = d3.select("#graph2").
+                append("svg").
+                attr("width", graphWidth).
+                attr("height", graphHeight);
+
+            // same x scale as likeScatterPlot
+            var xScale = d3.scaleTime()
+                                    .domain([
+                                        d3.isoParse("2013-01-01T00:00:00+0000")
+                                        , d3.max(dataset, function(d) { return d.created_time; })
+                                    ])
+                                    .range([padding, graphWidth - padding]);
+            var yScaleLikingRate = d3.scaleLinear().
+                domain([
+                    0
+                    , d3.max(postingData, function(d) { return d.like_rate; })
+                ]).
+                range([graphHeight - padding, padding]);
+
+            var yScalePostingRate = d3.scaleLinear().
+                domain([
+                    0
+                    , d3.max(postingData, function(d) { return d.posting_rate; })
+                ]).
+                range([graphHeight - padding, padding]);
+
+            // add axes
+            svg.append("g")
+                .attr("transform", "translate(0," + (graphHeight - padding) + ")")
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisBottom(xScale)
+                .tickArguments([25]));
+
+            svg.append("g")
+                .attr("transform", "translate(" + padding + ",0)")
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisLeft(yScaleLikingRate)
+                .tickArguments([8]))
+                .append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 8)
+                .attr("x", -padding)
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .style("font-weight", "bold")
+                .style("fill", d3.schemeCategory10[0])
+                .attr("dy", "0.71em")
+                .attr("fill", "#000")
+                .text("likes/post");
+
+            svg.append("g")             
+                .attr("transform", "translate(" + (graphWidth - padding) + " ,0)")   
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisRight(yScalePostingRate)
+                .tickArguments([8]))
+                .append("text")
+                .attr("transform", "rotate(90)")
+                .attr("y", 8)
+                .attr("x", padding)
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .style("font-weight", "bold")
+                .style("fill", d3.schemeCategory10[1])
+                .attr("dy", "0.71em")
+                .attr("fill", "#000")
+                .text("posts/month");
+
+            var likingRateLine = d3.line().
+                x(function(d) { return xScale(d.day); }).
+                y(function(d) { return yScaleLikingRate(d.like_rate); }).
+                curve(d3.curveBundle).
+                defined(function(d) { return !isNaN(d.like_rate); });
+
+            var postingRateLine = d3.line().
+                x(function(d) { return xScale(d.day); }).
+                y(function(d) { return yScalePostingRate(d.posting_rate); }).
+                curve(d3.curveBundle).
+                defined(function(d) { return !isNaN(d.posting_rate); });
+
+            svg.append("path")
+                .datum(postingData)
+                .attr("class", "line")
+                .style("stroke", d3.schemeCategory10[0])
+                .style("stroke-width", 2)
+                .attr("d", likingRateLine);
+
+            svg.append("path")
+                .datum(postingData)
+                .attr("class", "line")
+                .style("stroke", d3.schemeCategory10[1])
+                .style("stroke-width", 2)
+                .attr("d", postingRateLine);
+
+            drawLikersGraph();
+
+        }
+
+        function drawLikersGraph() {
+
+            // calculate top n historical likers
+            var n = 7;
+            var likeDict = {};
+            for (var i=0; i<dataset.length; i++) {
+                for (var j=0; j<dataset[i].likers.length; j++) {
+                    if (dataset[i].likers[j].name in likeDict) {
+                        likeDict[dataset[i].likers[j].name] += 1;
+                    } else {
+                        likeDict[dataset[i].likers[j].name] = 1;
+                    }
+                }
+            }
+            var items = Object.keys(likeDict).map(function(key) {
+                return [key, likeDict[key]];
+            });
+            // Sort the array based on the second element
+            items.sort(function(first, second) {
+                return second[1] - first[1];
+            });
+            var topCounts = items.slice(0, n);
+            var topFriends = {};
+            for (var i = 0; i < topCounts.length; i++) {
+                topFriends[topCounts[i][0]] = 0;
+            }
+
+            // calculate each friends liking rate time-series
+            var lookbackPeriod = 30*4;
+            var allDays = d3.timeDays(
+                d3.timeDay.offset(d3.isoParse("2013-01-01T00:00:00+0000"), lookbackPeriod)
+                , d3.timeDay.offset(d3.max(dataset, function(d) { return d.created_time; }), -lookbackPeriod)
+            );
+            var friendData = [];
+            for (var i = 0; i < n; i++) {
+                friendData[i] = [];
+            }
+            for (var i = 0; i < allDays.length; i++) {
+                // zero out counters
+                var postCount = 0;
+                for (var friend in topFriends) {
+                    topFriends[friend] = 0;
+                }
+                for (var post_id in data) {
+                    if (data[post_id].created_time <= allDays[i]
+                        && data[post_id].created_time > (d3.timeDay.offset(allDays[i], -lookbackPeriod))) {
+                        postCount++;
+                        var likerSet = new Set();
+                        for (var j = 0; j < data[post_id].likers.length; j++) {
+                            likerSet.add(data[post_id].likers[j].name);
+                        }
+                        for (var friend in topFriends) {
+                            if (likerSet.has(friend)) {
+                                topFriends[friend]++;
+                            };
+                        }
+                    }
+                }
+                // convert to liking rates
+                for (var friend in topFriends) {
+                    topFriends[friend] = topFriends[friend] / postCount;
+                }
+                // add to data
+                for (var friend in Object.keys(topFriends)) {
+                    friendData[friend].push(
+                        {
+                            "day": allDays[i],
+                            "like_pct": topFriends[Object.keys(topFriends)[friend]]
+                        });
+                }
+            }
+            
+            // create viz
+            d3.select("#graph1title")
+                .append("div")
+                .text("Who are your biggest fans over time?")
+                .style("font-weight", "normal")
+                .style("font-variant", "normal")
+                .append("div")
+                .text("Top " + n + " likers, 120-day rates, since 2013")
+                .style("font-weight", "bold")
+                .style("font-variant", "small-caps");
+
+            // create SVG element
+            var svg = d3.select("#graph1")
+                .append("svg")
+                .attr("width", graphWidth)
+                .attr("height", graphHeight);
+
+            var xScale = d3.scaleTime()
+                                    .domain([
+                                        d3.isoParse("2013-01-01T00:00:00+0000")
+                                        , d3.max(dataset, function(d) { return d.created_time; })
+                                    ])
+                                    .range([padding, graphWidth - padding]);
+
+            function getMax(arr, prop) {
+                var max;
+                for (var i=0 ; i<arr.length ; i++) {
+                    if (!max || arr[i][prop] > max)
+                        max = arr[i][prop];
+                }
+                return max;
+            }
+
+            var yScale = d3.scaleLinear().
+                domain([0, d3.max(friendData, function(d) { return getMax(d, "like_pct"); }) ]).
+                range([graphHeight - padding, padding]);
+
+            // add axes
+            svg.append("g")
+                .attr("transform", "translate(0," + (graphHeight - padding) + ")")
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisBottom(xScale)
+                    .tickArguments([25]));
+
+            svg.append("g")
+                .attr("transform", "translate(" + padding + ",0)")
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .call(d3.axisLeft(yScale)
+                    .tickArguments([5])
+                    .tickFormat(d3.format(".0%")))
+                .append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 8)
+                .attr("x", -padding)
+                .style("font-family", fontFamily)
+                .style("font-size", axisFontSize)
+                .style("font-weight", "bold")
+                .attr("dy", "0.71em")
+                .attr("fill", "#000")
+                .text("% of posts liked");
+
+            var line = d3.line()
+                .x(function(d) { return xScale(d.day); })
+                .y(function(d) { return yScale(d.like_pct); }).
+                curve(d3.curveBundle.beta(0.65));
+
+            svg.selectAll(".line")
+                .data(friendData)
+                .enter().append("path")
+                .attr("class", function(d, i) { return "line line" + i; })
+                .attr("d", line)
+                .style("stroke-width", 2)
+                .style("stroke", function(d, i) { return d3.schemeCategory10[i]; });
+                // .on("mouseover", function (d) {                                  
+                //     d3.select(this)                          
+                //         .style("stroke-width",'3px');
+                //     var selectthegraphs = $('#graph1 .line').not(this);   
+                //     d3.selectAll(selectthegraphs)
+                //         .style("opacity", 0.3);
+                // })
+                // .on("mouseout", function(d) {
+                //     d3.select(this)
+                //         .style("stroke-width",'3px');
+                //     var selectthegraphs = $('#graph1 .line').not(this);
+                //     d3.selectAll(selectthegraphs)
+                //         .style("opacity", 1);
+                // });
+
+            var labelData = [];
+            for (var i = 0; i < n; i++) {
+                labelData.push({
+                    "name" : topCounts[i][0],
+                    "value" : friendData[i][friendData[i].length - 1]
+                });
+            }
+
+            svg.selectAll("g .label")
+                .data(labelData).enter()
+                .append("g")
+                .attr("class", function(d, i) { return "label line" + i; })
+                .attr("transform", function(d) { 
+                    return "translate(" + xScale(d.value.day) + "," + yScale(d.value.like_pct) + ")";
+                })
+                .on("mouseover", function(d) {
+                    var allOtherLines = $("#graph1 .line").not("." + this.className.animVal.split(" ")[1]);
+                    d3.selectAll(allOtherLines)
+                        .style("opacity", 0.3);
+                    var allOtherLabels = $("#graph1 .label").not("." + this.className.animVal.split(" ")[1]);
+                    d3.selectAll(allOtherLabels)
+                        .style("opacity", 0.55);
+                })
+                .on("mouseout", function(d) {
+                    d3.selectAll("#graph1 .line")
+                        .style("opacity", 1);
+                    d3.selectAll("#graph1 .label")
+                        .style("opacity", 1);
+                })
+                .append("text")
+                .attr("class", function(d, i) { return "label line" + i; })
+                .attr("x", 0)
+                .attr("dy", "0.35em")
+                .style("font", "11px Georgia")
+                .style("font-weight", "bold")
+                .attr("fill", function(d, i) { return d3.schemeCategory10[i]; })
+                .text(function(d) { return d.name; });
+
+        }
+
+        // pulls all of current user's Facebook photos
+        function getPhotos() {
+            FB.api(
+                '/me/photos',
+                'GET',
+                {"fields":"link,likes,images,comments,caption"},
+                function (response) {
+                    console.log(response);
+                    // assumes >1 page
+                    printObject(response.paging.next);
+                }
+            );
+        }
+
+        // prints objects recursively
+        function printObject(endpoint) {
+            FB.api(endpoint, 
+                function(response) {
+                    console.log(response);
+                    // posts = posts.concat(response.data);
+                    if ('paging' in response) {
+                        printObject(response.paging.next);
+                    } else {
+                        return;
+                    }
+                }
+            );
+        }
+
+        // load FB library asychronously
+          (function(d, s, id){
+             var js, fjs = d.getElementsByTagName(s)[0];
+             if (d.getElementById(id)) {return;}
+             js = d.createElement(s); js.id = id;
+             js.src = "https://connect.facebook.net/en_US/sdk.js";
+             fjs.parentNode.insertBefore(js, fjs);
+           }(document, 'script', 'facebook-jssdk'));
+
+        </script>
+    </body>
+</html> 
